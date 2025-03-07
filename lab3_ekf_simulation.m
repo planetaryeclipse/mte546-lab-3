@@ -44,6 +44,7 @@ Q = [1 alpha ; alpha alpha^2 ]*expected_x_std^2;
 
 % measurement noise (make sure matches dimension of z)
 R = eye(2)*sensor_noise_var;
+R1 = eye(2)*0.02;
 
 % for convention
 f = @(x) A*x;
@@ -60,7 +61,7 @@ tf = 20;
 simulated_time = 0:T_ekf:tf;
 
 w_rand = mvnrnd(zeros(2,1),Q,length(simulated_time))';
-eta_rand = normrnd(0,sqrt(R(1,1)),2,length(simulated_time)); % same var
+eta_rand = normrnd(0,sqrt(R1(1,1)),2,length(simulated_time)); % same var
 
 % linear point-to-point
 xf = [200 0]';
@@ -94,7 +95,9 @@ hold on
 grid on
 plot(simulated_time,x_nl_pp(1,:));
 plot(simulated_time,x_rand_motion(1,:));
-
+xlabel("Time (s)")
+ylabel("Distance (mm)")
+title("Simulated Trajectories")
 legend("Linear PP", "Nonlinear PP", "Random Motion")
 
 %% simulation
@@ -103,46 +106,104 @@ t = simulated_time;
 
 % linear point-to-point
 
-x_init_lin_pp = x0;
+x_init_lin_pp = [170 0]';
 P_init_lin_pp = Q;
 
 [x_ests_lin_pp,P_ests_lin_pp] = evaluate_ekf(x_init_lin_pp,P_init_lin_pp,z_lin_pp,f,h,F,H,Q,R);
+[lin_pp_stdPos, lin_pp_stdVel] = Uncertainty(P_ests_lin_pp);
+
+
+% nonlinear point-to-point
+
+x_init_nl_pp = [170 0]';
+P_init_nl_pp = Q;
+
+[x_ests_nl_pp,P_ests_nl_pp] = evaluate_ekf(x_init_nl_pp,P_init_nl_pp,z_nl_pp,f,h,F,H,Q,R);
+[nonlin_pp_stdPos, nonlin_pp_stdVel] = Uncertainty(P_ests_nl_pp);
+
+
+% random motion
+
+x_init_rand_motion = [300 0]';
+P_init_rand_motion = Q;
+
+[x_ests_rand_motion,P_ests_rand_motion] = evaluate_ekf(x_init_rand_motion,P_init_rand_motion,z_rand_motion,f,h,F,H,Q,R);
+[rand_pp_stdPos, rand_pp_stdVel] = Uncertainty(P_ests_rand_motion);
 
 figure
+
+subplot(3, 2, 1);
 plot(t,x_lin_pp(1,:));
 hold on
 grid on
 plot(t,x_ests_lin_pp(1,:),'--');
-
+xlabel("Time (s)")
+ylabel("Distance (mm)")
+title("Linear Point to Point EKF Simulation")
 legend("Actual","Estimates")
 
-% nonlinear point-to-point
+subplot(3, 2, 2);
+plot(t,lin_pp_stdPos);
+hold on
+grid on
+plot(t,lin_pp_stdVel);
+xlabel("Time (s)")
+ylabel("Standard Deviation (mm^2)")
+title("Linear Point to Point Uncertainty")
+legend("Distance std","Velocity std")
 
-x_init_nl_pp = x0;
-P_init_nl_pp = Q;
-
-[x_ests_nl_pp,P_ests_nl_pp] = evaluate_ekf(x_init_nl_pp,P_init_nl_pp,z_nl_pp,f,h,F,H,Q,R);
-
-figure
+subplot(3, 2, 3);
 plot(t,x_nl_pp(1,:));
 hold on
 grid on
 plot(t,x_ests_nl_pp(1,:),'--');
-
+xlabel("Time (s)")
+ylabel("Distance (mm)")
+title("Non-Linear Point to Point EKF Simulation")
 legend("Actual","Estimates")
 
-% random motion
+subplot(3, 2, 4);
+plot(t,nonlin_pp_stdPos);
+hold on
+grid on
+plot(t,nonlin_pp_stdVel);
+xlabel("Time (s)")
+ylabel("Standard Deviation (mm^2)")
+title("Non-Linear Point to Point Uncertainty")
+legend("Distance std","Velocity std")
 
-x_init_rand_motion = x0;
-P_init_rand_motion = Q;
-
-[x_ests_rand_motion,P_ests_rand_motion] = evaluate_ekf(x_init_rand_motion,P_init_rand_motion,z_rand_motion,f,h,F,H,Q,R);
-
-figure
+subplot(3, 2, 5);
 plot(t,x_rand_motion(1,:));
 hold on
 grid on
 plot(t,x_ests_rand_motion(1,:),'--');
-
+xlabel("Time (s)")
+ylabel("Distance (mm)")
+title("Random Motion EKF Simulation")
 legend("Actual","Estimates")
+
+subplot(3, 2, 6);
+plot(t,rand_pp_stdPos);
+hold on
+grid on
+plot(t,rand_pp_stdVel);
+xlabel("Time (s)")
+ylabel("Standard Deviation (mm^2)")
+title("Non-Linear Point to Point Uncertainty")
+legend("Distance std","Velocity std")
+
+sgtitle("EKF Noise Covariance Sensors 0.02");
+
+function [stdPos, stdVel] = Uncertainty(P)
+    [~, ~, m] = size(P);
+    
+    stdPos = zeros(1, m); % Uncertainty Position
+    stdVel = zeros(1, m); % Uncertainty Velocity
+    
+    % Compute standard deviations
+    for k = 1:m
+        stdPos(k) = sqrt(P(1, 1, k));
+        stdVel(k) = sqrt(P(2, 2, k));
+    end
+end
 
